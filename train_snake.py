@@ -62,5 +62,5 @@ else:
 
 # 根据参数决定是否启用渲染回调
 render_callback = RenderCallback(env=env, render_freq=50, render=args.render)
-model.learn(total_timesteps=100000, callback=render_callback)
+model.learn(total_timesteps=1000000, callback=render_callback)
 model.save(model_path)

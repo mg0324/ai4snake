@@ -33,7 +33,8 @@ class SnakeEnv(gym.Env):
         self.score = 0
         self.snake_length = 1  # 重置蛇的长度
         self.direction = 3  # 初始方向为右
-        self.prev_direction = self.direction
+        self.steps = 0
+        self.history_positions = {}
         return self._get_observation()
 
     def _generate_food(self):
@@ -50,15 +51,16 @@ class SnakeEnv(gym.Env):
         return state
 
     def step(self, action):
+        self.steps += 1
+
         # 如果蛇的长度大于1，并且动作是反方向的，则忽略该动作并给惩罚
         if len(self.snake) > 1:
             if (self.direction == 0 and action == 1) or (self.direction == 1 and action == 0) or \
-               (self.direction == 2 and action == 3) or (self.direction == 3 and action == 2):
+            (self.direction == 2 and action == 3) or (self.direction == 3 and action == 2):
                 action = self.direction  # 保持当前方向
                 reward = -1  # 给予惩罚
                 return self._get_observation(), reward, self.done, {}
 
-        self.prev_direction = self.direction
         self.direction = action
 
         if action == 0:  # 上
@@ -77,7 +79,7 @@ class SnakeEnv(gym.Env):
         else:
             self.snake.insert(0, new_head)
             if new_head == self.food:
-                reward = 20 * len(self.snake)  # 奖励与蛇的长度成比例
+                reward = 20  # 奖励找到食物
                 self.score += 1
                 self.snake_length += 1  # 增加蛇的长度
                 self.food = self._generate_food()
@@ -90,10 +92,23 @@ class SnakeEnv(gym.Env):
                 distance = abs(self.snake[0][0] - self.food[0]) + abs(self.snake[0][1] - self.food[1])
                 reward += (self.grid_size - distance) * 0.1
 
-                # 检查是否在抖动
-                if (self.prev_direction == 0 and self.direction == 2) or (self.prev_direction == 2 and self.direction == 0) or \
-                   (self.prev_direction == 1 and self.direction == 3) or (self.prev_direction == 3 and self.direction == 1):
-                    reward -= 0.5  # 如果出现抖动行为，给予负奖励
+            # 记录蛇的位置
+            if new_head in self.history_positions:
+                self.history_positions[new_head] += 1
+            else:
+                self.history_positions[new_head] = 1
+
+            # 如果蛇在最近50步内回到同一位置超过3次，给予惩罚
+            if self.history_positions[new_head] > 3:
+                reward -= 5
+
+        # 添加时间步惩罚，鼓励尽快找到食物
+        reward -= 0.01 * self.steps
+
+        # 清理历史位置记录，只保留最近50步
+        if len(self.history_positions) > 50:
+            oldest_position = list(self.history_positions.keys())[0]
+            del self.history_positions[oldest_position]
 
         return self._get_observation(), reward, self.done, {}
 
