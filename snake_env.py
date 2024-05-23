@@ -24,7 +24,7 @@ class SnakeEnv(gym.Env):
         self.clock = pygame.time.Clock()
 
         # 初始化字体
-        self.font = pygame.font.SysFont('Arial', 18)
+        self.font = pygame.font.SysFont('Arial', 24)
 
     def reset(self):
         self.snake = [(self.grid_size // 2, self.grid_size // 2)]
@@ -35,6 +35,7 @@ class SnakeEnv(gym.Env):
         self.direction = 3  # 初始方向为右
         self.steps = 0
         self.history_positions = {}
+        self.old_distance = self._get_distance_to_food()
         return self._get_observation()
 
     def _generate_food(self):
@@ -43,10 +44,14 @@ class SnakeEnv(gym.Env):
             if food not in self.snake:
                 return food
 
+    def _get_distance_to_food(self):
+        head = self.snake[0]
+        return abs(head[0] - self.food[0]) + abs(head[1] - self.food[1])
+
     def _get_observation(self):
         state = np.zeros((self.grid_size, self.grid_size, 3), dtype=np.uint8)
-        for s in self.snake:
-            state[s] = (0, 255, 0)
+        for i, s in enumerate(self.snake):
+            state[s] = (0, 255, 0) if i != 0 else (0, 0, 255)  # 蛇头用蓝色，其余用绿色
         state[self.food] = (255, 0, 0)
         return state
 
@@ -74,23 +79,28 @@ class SnakeEnv(gym.Env):
 
         if self._is_collision(new_head):
             self.done = True
-            reward = -10  # 增加碰撞的惩罚
+            reward = -10  # 碰撞惩罚
             logging.info(f"Snake died. Length was: {len(self.snake)}")  # 打印蛇的长度
         else:
             self.snake.insert(0, new_head)
             if new_head == self.food:
-                reward = 20  # 奖励找到食物
+                reward = 50  # 吃到食物的奖励
                 self.score += 1
                 self.snake_length += 1  # 增加蛇的长度
                 self.food = self._generate_food()
+                self.old_distance = self._get_distance_to_food()  # 重置距离
                 logging.info(f"Snake ate food at {self.food}")
             else:
                 reward = -0.01  # 每一步稍微有点惩罚，以鼓励尽快找到食物
                 self.snake.pop()
 
                 # 鼓励靠近食物
-                distance = abs(self.snake[0][0] - self.food[0]) + abs(self.snake[0][1] - self.food[1])
-                reward += (self.grid_size - distance) * 0.1
+                new_distance = self._get_distance_to_food()
+                if new_distance < self.old_distance:
+                    reward += 1  # 靠近食物给予奖励
+                else:
+                    reward -= 1  # 远离食物给予惩罚
+                self.old_distance = new_distance
 
             # 记录蛇的位置
             if new_head in self.history_positions:
@@ -121,8 +131,9 @@ class SnakeEnv(gym.Env):
 
     def render(self, mode='human'):
         self.screen.fill((0, 0, 0))
-        for s in self.snake:
-            pygame.draw.rect(self.screen, (0, 255, 0), pygame.Rect(s[1] * self.block_size, s[0] * self.block_size, self.block_size, self.block_size))
+        for i, s in enumerate(self.snake):
+            color = (0, 255, 0) if i != 0 else (0, 0, 255)  # 蛇头用蓝色，其余用绿色
+            pygame.draw.rect(self.screen, color, pygame.Rect(s[1] * self.block_size, s[0] * self.block_size, self.block_size, self.block_size))
         pygame.draw.rect(self.screen, (255, 0, 0), pygame.Rect(self.food[1] * self.block_size, self.food[0] * self.block_size, self.block_size, self.block_size))
 
         # 显示分数在右上角
@@ -137,3 +148,14 @@ class SnakeEnv(gym.Env):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+
+if __name__ == "__main__":
+    env = SnakeEnv(grid_size=10)
+
+    done = False
+    obs = env.reset()
+    while not done:
+        env.render()
+        action = env.action_space.sample()  # 随机动作
+        obs, reward, done, info = env.step(action)
+    pygame.quit()
