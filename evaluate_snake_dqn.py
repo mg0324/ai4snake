@@ -1,9 +1,9 @@
-from stable_baselines3 import PPO
+from stable_baselines3 import DQN
 from snake_env import SnakeEnv
 import logging
 
 env = SnakeEnv(grid_size=20)
-model = PPO.load("ppo_snake")
+model = DQN.load("dqn_snake")
 
 obs = env.reset()
 for i in range(1000):

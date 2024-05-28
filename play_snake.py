@@ -3,7 +3,7 @@ import sys
 from snake_env import SnakeEnv
 
 # 初始化游戏环境
-env = SnakeEnv(grid_size=20)  # 使用20x20的网格
+env = SnakeEnv(grid_size=30)  # 使用20x20的网格
 obs = env.reset()
 env.render()
 

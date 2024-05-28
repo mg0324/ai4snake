@@ -1,6 +1,8 @@
+import heapq
+import numpy as np
+import random
 import gym
 from gym import spaces
-import numpy as np
 import pygame
 import sys
 import logging
@@ -8,8 +10,56 @@ import logging
 # 设置日志级别
 logging.basicConfig(level=logging.INFO)
 
+def a_star_search(grid, start, goal):
+    def heuristic(a, b):
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+    neighbors = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+    close_set = set()
+    came_from = {}
+    gscore = {start: 0}
+    fscore = {start: heuristic(start, goal)}
+    oheap = []
+
+    heapq.heappush(oheap, (fscore[start], start))
+
+    while oheap:
+        current = heapq.heappop(oheap)[1]
+
+        if current == goal:
+            data = []
+            while current in came_from:
+                data.append(current)
+                current = came_from[current]
+            return data[::-1]
+
+        close_set.add(current)
+        for i, j in neighbors:
+            neighbor = current[0] + i, current[1] + j            
+            tentative_g_score = gscore[current] + heuristic(current, neighbor)
+            if 0 <= neighbor[0] < grid.shape[0]:
+                if 0 <= neighbor[1] < grid.shape[1]:
+                    if grid[neighbor[0]][neighbor[1]] == 1:
+                        continue
+                else:
+                    continue
+            else:
+                continue
+
+            if neighbor in close_set and tentative_g_score >= gscore.get(neighbor, 0):
+                continue
+
+            if  tentative_g_score < gscore.get(neighbor, 0) or neighbor not in [i[1] for i in oheap]:
+                came_from[neighbor] = current
+                gscore[neighbor] = tentative_g_score
+                fscore[neighbor] = tentative_g_score + heuristic(neighbor, goal)
+                heapq.heappush(oheap, (fscore[neighbor], neighbor))
+
+    return False
+
+
 class SnakeEnv(gym.Env):
-    def __init__(self, grid_size=10):
+    def __init__(self, grid_size=10, size=800):
         super(SnakeEnv, self).__init__()
         self.grid_size = grid_size
         self.action_space = spaces.Discrete(4)  # 上、下、左、右
@@ -18,7 +68,7 @@ class SnakeEnv(gym.Env):
 
         # 初始化 pygame
         pygame.init()
-        self.size = 500  # 窗口大小
+        self.size = size  # 窗口大小
         self.block_size = self.size // self.grid_size  # 每个方块的大小
         self.screen = pygame.display.set_mode((self.size, self.size))
         self.clock = pygame.time.Clock()
@@ -32,9 +82,7 @@ class SnakeEnv(gym.Env):
         self.done = False
         self.score = 0
         self.snake_length = 1  # 重置蛇的长度
-        self.direction = 3  # 初始方向为右
         self.steps = 0
-        self.history_positions = {}
         self.old_distance = self._get_distance_to_food()
         return self._get_observation()
 
@@ -58,16 +106,6 @@ class SnakeEnv(gym.Env):
     def step(self, action):
         self.steps += 1
 
-        # 如果蛇的长度大于1，并且动作是反方向的，则忽略该动作并给惩罚
-        if len(self.snake) > 1:
-            if (self.direction == 0 and action == 1) or (self.direction == 1 and action == 0) or \
-            (self.direction == 2 and action == 3) or (self.direction == 3 and action == 2):
-                action = self.direction  # 保持当前方向
-                reward = -1  # 给予惩罚
-                return self._get_observation(), reward, self.done, {}
-
-        self.direction = action
-
         if action == 0:  # 上
             new_head = (self.snake[0][0] - 1, self.snake[0][1])
         elif action == 1:  # 下
@@ -84,41 +122,22 @@ class SnakeEnv(gym.Env):
         else:
             self.snake.insert(0, new_head)
             if new_head == self.food:
-                reward = 50  # 吃到食物的奖励
+                base_reward = 50  # 吃到食物的基础奖励
+                length_bonus = self.snake_length  # 根据蛇长度增加的奖励
+                reward = base_reward + length_bonus
                 self.score += 1
                 self.snake_length += 1  # 增加蛇的长度
                 self.food = self._generate_food()
                 self.old_distance = self._get_distance_to_food()  # 重置距离
                 logging.info(f"Snake ate food at {self.food}")
             else:
-                reward = -0.01  # 每一步稍微有点惩罚，以鼓励尽快找到食物
-                self.snake.pop()
-
-                # 鼓励靠近食物
                 new_distance = self._get_distance_to_food()
                 if new_distance < self.old_distance:
-                    reward += 1  # 靠近食物给予奖励
+                    reward = 1  # 接近食物的奖励
                 else:
-                    reward -= 1  # 远离食物给予惩罚
+                    reward = -0.1  # 每一步稍微有点惩罚，以鼓励尽快找到食物
                 self.old_distance = new_distance
-
-            # 记录蛇的位置
-            if new_head in self.history_positions:
-                self.history_positions[new_head] += 1
-            else:
-                self.history_positions[new_head] = 1
-
-            # 如果蛇在最近50步内回到同一位置超过3次，给予惩罚
-            if self.history_positions[new_head] > 3:
-                reward -= 5
-
-        # 添加时间步惩罚，鼓励尽快找到食物
-        reward -= 0.01 * self.steps
-
-        # 清理历史位置记录，只保留最近50步
-        if len(self.history_positions) > 50:
-            oldest_position = list(self.history_positions.keys())[0]
-            del self.history_positions[oldest_position]
+                self.snake.pop()
 
         return self._get_observation(), reward, self.done, {}
 
@@ -149,13 +168,28 @@ class SnakeEnv(gym.Env):
                 pygame.quit()
                 sys.exit()
 
-if __name__ == "__main__":
-    env = SnakeEnv(grid_size=10)
+    def get_direction(self, head, goal):
+        if goal[0] < head[0]:
+            return 0  # 上
+        elif goal[0] > head[0]:
+            return 1  # 下
+        elif goal[1] < head[1]:
+            return 2  # 左
+        elif goal[1] > head[1]:
+            return 3  # 右
 
-    done = False
+# 测试环境
+if __name__ == "__main__":
+    env = SnakeEnv(grid_size=40)
     obs = env.reset()
-    while not done:
-        env.render()
-        action = env.action_space.sample()  # 随机动作
+    total_reward = 0
+
+    while True:
+        action = env.a_star_action()
         obs, reward, done, info = env.step(action)
-    pygame.quit()
+        total_reward += reward
+        env.render()
+        if done:
+            print("Game Over. Total Reward:", total_reward)
+            obs = env.reset()
+            total_reward = 0
