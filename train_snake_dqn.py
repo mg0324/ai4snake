@@ -61,5 +61,5 @@ else:
 
 # 训练模型并渲染
 #model.learn(total_timesteps=10000, callback=render_callback)
-model.learn(total_timesteps=100000)
+model.learn(total_timesteps=200000)
 model.save(model_path)
