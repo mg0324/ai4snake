@@ -1,8 +1,8 @@
 from stable_baselines3 import DQN
-from snake_env import SnakeEnv
+from snake_env import CustomSnakeEnv
 import logging
 
-env = SnakeEnv(grid_size=20)
+env = CustomSnakeEnv(grid_size=20)
 model = DQN.load("dqn_snake")
 
 obs = env.reset()

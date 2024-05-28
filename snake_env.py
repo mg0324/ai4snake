@@ -160,7 +160,7 @@ class SnakeEnv(gym.Env):
         self.screen.blit(score_text, text_rect)
 
         pygame.display.flip()
-        self.clock.tick(10)  # 控制游戏速度
+        self.clock.tick(50)  # 控制游戏速度
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -177,18 +177,35 @@ class SnakeEnv(gym.Env):
         elif goal[1] > head[1]:
             return 3  # 右
 
-# 测试环境
-if __name__ == "__main__":
-    env = SnakeEnv(grid_size=40)
-    obs = env.reset()
-    total_reward = 0
+class CustomSnakeEnv(SnakeEnv):
+    def step(self, action):
+        # 获取A*算法建议的路径
+        grid = np.zeros((self.grid_size, self.grid_size))
+        for s in self.snake:
+            grid[s] = 1
+        path = a_star_search(grid, self.snake[0], self.food)
 
-    while True:
-        action = env.a_star_action()
-        obs, reward, done, info = env.step(action)
-        total_reward += reward
-        env.render()
-        if done:
-            print("Game Over. Total Reward:", total_reward)
-            obs = env.reset()
-            total_reward = 0
+        # 如果存在路径，获取A*算法建议的下一个位置
+        if path:
+            next_position = path[0]
+            
+            if next_position[0] < self.snake[0][0]:
+                a_star_action = 0  # 上
+            elif next_position[0] > self.snake[0][0]:
+                a_star_action = 1  # 下
+            elif next_position[1] < self.snake[0][1]:
+                a_star_action = 2  # 左
+            elif next_position[1] > self.snake[0][1]:
+                a_star_action = 3  # 右
+            #print(f"存在a*路径,a_star_action:{a_star_action}")
+        else:
+            a_star_action = action  # 如果没有路径，使用DQN的动作
+
+        # 增强奖励：当DQN动作与A*建议的动作一致时，给予额外奖励
+        #if action == a_star_action:
+        #    reward += 10
+        # 使用A*算法的动作代替DQN的动作
+        observation, reward, done, info = super().step(a_star_action)
+        if reward !=  -10:
+            reward = 10
+        return observation, reward, done, info
