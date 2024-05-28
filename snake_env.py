@@ -122,20 +122,19 @@ class SnakeEnv(gym.Env):
         else:
             self.snake.insert(0, new_head)
             if new_head == self.food:
-                base_reward = 50  # 吃到食物的基础奖励
+                base_reward = 10  # 吃到食物的基础奖励
                 length_bonus = self.snake_length  # 根据蛇长度增加的奖励
                 reward = base_reward + length_bonus
                 self.score += 1
-                self.snake_length += 1  # 增加蛇的长度
                 self.food = self._generate_food()
                 self.old_distance = self._get_distance_to_food()  # 重置距离
-                logging.info(f"Snake ate food at {self.food}")
+                #logging.info(f"Snake ate food at {self.food}")
             else:
                 new_distance = self._get_distance_to_food()
                 if new_distance < self.old_distance:
                     reward = 1  # 接近食物的奖励
                 else:
-                    reward = -0.1  # 每一步稍微有点惩罚，以鼓励尽快找到食物
+                    reward = -5  # 每一步稍微有点惩罚，以鼓励尽快找到食物
                 self.old_distance = new_distance
                 self.snake.pop()
 
@@ -156,7 +155,7 @@ class SnakeEnv(gym.Env):
         pygame.draw.rect(self.screen, (255, 0, 0), pygame.Rect(self.food[1] * self.block_size, self.food[0] * self.block_size, self.block_size, self.block_size))
 
         # 显示分数在右上角
-        score_text = self.font.render(f'Score: {self.snake_length}', True, (255, 255, 255))
+        score_text = self.font.render(f'Score: {self.score}', True, (255, 255, 255))
         text_rect = score_text.get_rect(topright=(self.size - 10, 10))  # 设置右上角位置
         self.screen.blit(score_text, text_rect)
 

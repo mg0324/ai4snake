@@ -46,6 +46,7 @@ class CustomSnakeEnv(SnakeEnv):
         # 如果存在路径，获取A*算法建议的下一个位置
         if path:
             next_position = path[0]
+            
             if next_position[0] < self.snake[0][0]:
                 a_star_action = 0  # 上
             elif next_position[0] > self.snake[0][0]:
@@ -54,15 +55,17 @@ class CustomSnakeEnv(SnakeEnv):
                 a_star_action = 2  # 左
             elif next_position[1] > self.snake[0][1]:
                 a_star_action = 3  # 右
+            #print(f"存在a*路径,a_star_action:{a_star_action}")
         else:
             a_star_action = action  # 如果没有路径，使用DQN的动作
 
-        observation, reward, done, info = super().step(action)
-
         # 增强奖励：当DQN动作与A*建议的动作一致时，给予额外奖励
-        if action == a_star_action:
-            reward += 1
-
+        #if action == a_star_action:
+        #    reward += 10
+        # 使用A*算法的动作代替DQN的动作
+        observation, reward, done, info = super().step(a_star_action)
+        if reward !=  -10:
+            reward = 10
         return observation, reward, done, info
 
 env = DummyVecEnv([lambda: CustomSnakeEnv(grid_size=20)])
@@ -85,8 +88,9 @@ else:
     print("训练新模型...")
 
 # 创建回调对象，设定渲染频率为每100个时间步渲染一次
-#render_callback = RenderCallback(env=env, render_freq=100)
+#render_callback = RenderCallback(env=env, render_freq=1)
 
 # 训练模型并渲染
-model.learn(total_timesteps=10000)
+#model.learn(total_timesteps=10000, callback=render_callback)
+model.learn(total_timesteps=100000)
 model.save(model_path)
